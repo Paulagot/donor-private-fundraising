@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@10.18.2",
-  "engines": { "node": ">=20" },           // ← add this
+  "engines": { "node": ">=20" },        
   "workspaces": ["apps/*", "programs/*"],
   "scripts": {
     "lint": "eslint . --ext .ts,.tsx,.js",

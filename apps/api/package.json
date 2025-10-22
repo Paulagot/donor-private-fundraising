@@ -10,6 +10,7 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
+    "@arcium-hq/client": "^0.3.0",
     "@coral-xyz/anchor": "^0.31.1",
     "@solana/web3.js": "^1.98.4",
     "bs58": "^6.0.0",
