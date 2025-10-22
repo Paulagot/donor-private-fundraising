@@ -1,0 +1,15 @@
+{
+  "name": "tipjar-receipts-program",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "anchor build --workspace-dir ../../..",
+    "deploy": "anchor deploy --provider.cluster devnet --workspace-dir ../../..",
+    "test": "anchor test --workspace-dir ../../.."
+  },
+  "devDependencies": {
+    "@coral-xyz/anchor": "^0.29.0",
+    "chai": "^4.3.7",
+    "mocha": "^10.2.0"
+  }
+}

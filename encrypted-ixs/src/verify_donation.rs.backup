@@ -1,0 +1,48 @@
+use arcis_imports::*;
+
+/// This module contains the encrypted instruction that runs in MPC.
+/// The donation amount is encrypted and processed by Arcium's network
+/// without any single node seeing the actual value.
+#[encrypted]
+mod circuits {
+    use arcis_imports::*;
+
+    /// Input struct for the donation verification
+    pub struct DonationInput {
+        /// The donation amount in lamports (encrypted)
+        amount_lamports: u64,
+    }
+
+    /// This instruction computes the donation tier based on the encrypted amount.
+    /// The computation happens in MPC - no single node sees the actual amount.
+    /// 
+    /// Tier thresholds (in lamports):
+    /// - Tier 0: < 100_000_000 (< 0.1 SOL)
+    /// - Tier 1: >= 100_000_000 (>= 0.1 SOL)
+    /// - Tier 2: >= 250_000_000 (>= 0.25 SOL)
+    /// - Tier 3: >= 500_000_000 (>= 0.5 SOL)
+    /// - Tier 4: >= 1_000_000_000 (>= 1 SOL)
+    #[instruction]
+    pub fn verify_donation(input_ctxt: Enc<Shared, DonationInput>) -> u8 {
+        // Convert encrypted input to Arcis types for MPC computation
+        let input = input_ctxt.to_arcis();
+        
+        // Compute tier based on donation amount
+        // This entire computation happens in encrypted form across multiple nodes
+        let tier = if input.amount_lamports >= 1_000_000_000 {
+            4_u8  // >= 1 SOL
+        } else if input.amount_lamports >= 500_000_000 {
+            3_u8  // >= 0.5 SOL
+        } else if input.amount_lamports >= 250_000_000 {
+            2_u8  // >= 0.25 SOL
+        } else if input.amount_lamports >= 100_000_000 {
+            1_u8  // >= 0.1 SOL
+        } else {
+            0_u8  // < 0.1 SOL
+        };
+        
+        // Reveal the tier (plaintext output)
+        // The tier is revealed but the exact amount remains private
+        tier.reveal()
+    }
+}

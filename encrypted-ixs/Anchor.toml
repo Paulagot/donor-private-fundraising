@@ -1,0 +1,6 @@
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[programs.devnet]
+tipjar_mxe = "AuoVDGoVfQaRdKGGkrgQyfpcGrJt9P6C8AqVSkNoqo5i"

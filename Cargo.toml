@@ -1,0 +1,15 @@
+# ./Cargo.toml  (root)
+[workspace]
+members = [
+    "programs/tipjar-receipts",
+    "programs/tipjar-mxe",  # NEW: Add MXE program to workspace
+    "encrypted-ixs"
+]
+resolver = "2"
+
+[profile.release]
+
+overflow-checks = true
+
+[patch.crates-io]
+proc-macro2 = { git = 'https://github.com/arcium-hq/proc-macro2.git' }

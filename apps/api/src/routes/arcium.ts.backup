@@ -1,0 +1,113 @@
+import { Router } from 'express';
+import { verifyRequestSchema } from '../lib/validation';
+import { verifyTransaction } from '../lib/rpc';
+import { config } from '../lib/config';
+import { logError, logInfo } from '../lib/log';
+import { arciumClient } from '../lib/arcium-client';
+
+export const arciumRouter = Router();
+
+/**
+ * POST /arcium/verify
+ * Validates a transaction against the configured donation address and minimum lamports.
+ * For private donations: Submits to Arcium MPC for encrypted tier computation
+ * For simple donations: Computes tier locally
+ * Returns the commitment for receipt lookup
+ */
+arciumRouter.post('/verify', async (req, res) => {
+  try {
+    const parsed = verifyRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    }
+
+    const { txSig, reference, minLamports, isPrivate } = parsed.data;
+
+    logInfo('Donation verification request', { 
+      txSig, 
+      reference, 
+      minLamports,
+      isPrivate: isPrivate || false 
+    });
+
+    // Step 1: Verify the transaction includes the donation
+    await verifyTransaction(txSig, minLamports, reference);
+
+    let tier: number;
+    let commitment: string;
+
+    // Step 2: Determine if this is a private donation requiring MPC
+    if (isPrivate) {
+      // Private donation: Use Arcium MPC for encrypted tier computation
+      logInfo('Processing private donation with Arcium MPC', { txSig });
+      
+      try {
+        const result = await arciumClient.submitDonationToMPC(minLamports, txSig);
+        commitment = result.commitment;
+        
+        // For now, we compute tier locally after MPC confirms
+        // In production, the tier would come from MPC callback
+        tier = arciumClient.computeTierLocally(minLamports);
+        
+        logInfo('Arcium MPC computation completed', { 
+          txSig, 
+          computationOffset: result.computationOffset,
+          tier 
+        });
+
+      } catch (mpcError: any) {
+        logError('Arcium MPC failed, falling back to local computation', { 
+          error: mpcError.message 
+        });
+        
+        // Fallback to local computation if MPC fails
+        tier = arciumClient.computeTierLocally(minLamports);
+        commitment = arciumClient.generateCommitment(txSig, tier);
+      }
+
+    } else {
+      // Simple donation: Compute tier locally (transparent on-chain)
+      logInfo('Processing simple donation (public)', { txSig });
+      
+      tier = arciumClient.computeTierLocally(minLamports);
+      commitment = arciumClient.generateCommitment(txSig, tier);
+      
+      logInfo('Simple donation processed', { txSig, tier });
+    }
+
+    // Step 3: Handle callback mode
+    if (config.callbackMode === 'server') {
+      // Server mode: Return commitment and tier directly to client
+      return res.json({ 
+        status: 'verified', 
+        receiptCommitment: commitment, 
+        amountTier: tier,
+        isPrivate: isPrivate || false
+      });
+
+    } else {
+      // On-chain mode: Instruct client to poll for receipt
+      // The receipt will be written on-chain by either:
+      // - Arcium callback (for private donations)
+      // - Direct write (for simple donations)
+      logInfo('Queuing on-chain receipt write', { 
+        txSig, 
+        reference, 
+        tier, 
+        commitment 
+      });
+      
+      return res.json({ 
+        status: 'queued', 
+        reference,
+        commitment,
+        tier,
+        isPrivate: isPrivate || false
+      });
+    }
+
+  } catch (err: any) {
+    logError('Verification error', { error: err.message });
+    return res.status(500).json({ error: err.message });
+  }
+});
