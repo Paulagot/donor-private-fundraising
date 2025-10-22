@@ -6,7 +6,7 @@ Replace with this comprehensive version:
 ```
 # dependencies
 node_modules/
-pnpm-lock.yaml
+
 
 # environment files
 .env
