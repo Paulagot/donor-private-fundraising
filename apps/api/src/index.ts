@@ -8,9 +8,16 @@ const app = express();
 
 // Middleware
 app.use(express.json());
+const allowAll = config.allowedOrigins.includes('*');
+
 app.use(
   cors({
-    origin: config.publicWebsiteOrigin,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);               // same-origin / curl
+      if (allowAll) return callback(null, true);              // wildcard
+      if (config.allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: false,
   })
 );

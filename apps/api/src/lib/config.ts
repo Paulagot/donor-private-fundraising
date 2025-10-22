@@ -1,10 +1,21 @@
+// apps/api/src/lib/config.ts
 import dotenv from 'dotenv';
-
-// Load environment variables from a `.env` file.  When running via ts-node or
-// compiled code, this will pick up `.env` in the current working directory
-// if present.  If no `.env` file exists, environment variables are
-// unaffected.
 dotenv.config();
+
+// Build an array of allowed origins from env:
+// Prefer ALLOWED_ORIGINS (comma-separated), otherwise fall back to PUBLIC_WEBSITE_ORIGIN, or '*' (allow all)
+const rawOrigins =
+  process.env.ALLOWED_ORIGINS ??
+  process.env.PUBLIC_WEBSITE_ORIGIN ??
+  '*';
+
+const parsedAllowedOrigins =
+  rawOrigins === '*'
+    ? ['*']
+    : rawOrigins
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
 
 export const config = {
   rpcUrl: process.env.RPC_URL || process.env.SHARED_RPC_URL || 'https://api.devnet.solana.com',
@@ -14,8 +25,14 @@ export const config = {
   callbackMode: (process.env.CALLBACK_MODE || 'onchain') as 'onchain' | 'server',
   tipjarProgramId: process.env.TIPJAR_PROGRAM_ID || '',
   port: parseInt(process.env.PORT || '3001', 10),
+
+  // keep old single-origin setting for backwards compatibility
   publicWebsiteOrigin: process.env.PUBLIC_WEBSITE_ORIGIN || '*',
-  // Tier thresholds defined as lamports; fallback to defaults if not provided
+
+  // NEW: what index.ts expects
+  allowedOrigins: parsedAllowedOrigins,
+
+  // Tier thresholds (lamports)
   tiers: [
     parseInt(process.env.MIN_TIER_LAMPORTS_0 || String(0.1 * 1e9), 10),
     parseInt(process.env.MIN_TIER_LAMPORTS_1 || String(0.25 * 1e9), 10),

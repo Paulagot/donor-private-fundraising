@@ -1,0 +1,53 @@
+cd ~/cypherpunk-tipjar
+nano .gitignore
+```
+
+Replace with this comprehensive version:
+```
+# dependencies
+node_modules/
+
+
+# environment files
+.env
+.env.local
+.env.*.local
+apps/*/.env
+apps/*/.env.local
+programs/*/.env
+**/.env
+
+# keypairs and secrets - CRITICAL
+**/*keypair*.json
+**/api-signer.json
+**/*-key.json
+**/id.json
+**/*.key
+.anchor/test-ledger/
+test-ledger/
+
+# build artifacts
+dist/
+build/
+*.log
+coverage/
+
+# anchor artifacts
+programs/**/target/
+programs/**/.anchor/
+target/
+.anchor/
+
+# IDL files in target (keep the ones in apps/api/idl)
+target/idl/
+
+# misc
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
