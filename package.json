@@ -3,10 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@10.18.2",
-  "workspaces": [
-    "apps/*",
-    "programs/*"
-  ],
+  "engines": { "node": ">=20" },           // ← add this
+  "workspaces": ["apps/*", "programs/*"],
   "scripts": {
     "lint": "eslint . --ext .ts,.tsx,.js",
     "format": "prettier --write .",

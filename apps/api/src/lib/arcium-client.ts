@@ -112,28 +112,51 @@ export class ArciumClient {
   }
 
   // Initialize Anchor provider + signer + Program (lazy)
-  private initializeProvider() {
-    if (this.provider) return;
-    try {
-      const signerPath = process.env.API_SIGNER_KEYPAIR_PATH || '/home/paulag/.config/solana/id.json';
-      const signerData = JSON.parse(fs.readFileSync(signerPath, 'utf-8'));
-      this.signer = Keypair.fromSecretKey(new Uint8Array(signerData));
+private initializeProvider() {
+  if (this.provider) return;
 
-      this.provider = new anchor.AnchorProvider(
-        this.connection,
-        new anchor.Wallet(this.signer),
-        { commitment: 'confirmed' }
-      );
+  try {
+    // Prefer JSON from env (Railway), fall back to file (local dev)
+    const signerJson = process.env.API_SIGNER_KEYPAIR_JSON;
+    const signerPath =
+      process.env.API_SIGNER_KEYPAIR_PATH || '/home/paulag/.config/solana/id.json';
 
-      this.mxeProgram = new anchor.Program(MXE_IDL, this.provider);
+    let secretBytes: Uint8Array;
 
-      console.log('✅ [client initializeProvider] Arcium provider initialized');
-      console.log('[client initializeProvider]  - Signer:', this.signer.publicKey.toBase58());
-    } catch (error) {
-      console.error('Failed to initialize provider:', error);
-      throw error;
+    if (signerJson && signerJson.trim().length > 0) {
+      // Env var contains the full JSON array from id.json
+      const arr = JSON.parse(signerJson);
+      if (!Array.isArray(arr)) {
+        throw new Error('API_SIGNER_KEYPAIR_JSON must be a JSON array of 64 bytes');
+      }
+      secretBytes = new Uint8Array(arr);
+    } else {
+      // Local fallback: read the file
+      const data = JSON.parse(fs.readFileSync(signerPath, 'utf-8'));
+      if (!Array.isArray(data)) {
+        throw new Error(`Keypair file at ${signerPath} is not a JSON array`);
+      }
+      secretBytes = new Uint8Array(data);
     }
+
+    this.signer = Keypair.fromSecretKey(secretBytes);
+
+    this.provider = new anchor.AnchorProvider(
+      this.connection,
+      new anchor.Wallet(this.signer),
+      { commitment: 'confirmed' }
+    );
+
+    this.mxeProgram = new anchor.Program(MXE_IDL, this.provider);
+
+    console.log('✅ [client initializeProvider] Arcium provider initialized');
+    console.log('[client initializeProvider]  - Signer:', this.signer.publicKey.toBase58());
+  } catch (error) {
+    console.error('Failed to initialize provider:', error);
+    throw error;
   }
+}
+
 
   /**
    * Submit a donation amount to Arcium MPC for tier computation
