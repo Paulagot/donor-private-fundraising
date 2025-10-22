@@ -107,7 +107,7 @@ export default function HowItWorks() {
 
           <div className="mt-6 flex flex-wrap gap-3">
             <a href="/donate" className="inline-flex items-center px-5 py-3 rounded-lg border-2 border-purple-500 bg-black hover:bg-purple-900/30 transition shadow-[0_0_25px_rgba(168,85,247,0.25)] font-semibold">
-              [SECURE DONATE]
+              [PRIVATE DONATE]
             </a>
             <a href="https://fundraisely.co.uk/founding-partners" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-5 py-3 rounded-lg border-2 border-cyan-400/60 hover:border-cyan-300/90 bg-black/40 hover:bg-black/60 transition">
               Subscription Benefits →
@@ -120,8 +120,7 @@ export default function HowItWorks() {
           {/* Key privacy callout */}
           <div className="mt-6 rounded-xl border border-cyan-500/40 bg-black/50 p-4 max-w-3xl">
             <p className="text-sm text-cyan-200/90">
-              <span className="font-bold text-cyan-100">Clarity:</span> Standard SOL transfers mean the <span className="underline">donor wallet is visible on-chain</span>. We deliberately do <em>not</em> write donor identities into receipts. The **amount itself** is kept private by computing only the **tier** off-chain (via Arcium MPC, with local fallback). If you want full payment privacy (hide sender <em>and</em> amount on-chain), that’s a planned Phase-2 with Elusiv.
-            </p>
+              <span className="font-bold text-cyan-100">Clarity:</span> Standard SOL transfers mean the <span className="underline">donor wallet is visible on-chain</span>. We deliberately do <em>not</em> write donor identities into receipts. The **amount itself** is kept private by computing only the **tier** off-chain (via Arcium MPC, with local fallback). This way, donors can contribute with confidence, knowing their exact donation amount remains confidential and their wallet address is not exposed in the receipt. </p>
           </div>
         </div>
       </div>
@@ -191,14 +190,14 @@ export default function HowItWorks() {
             What you’ll see when you donate
           </h2>
           <ul className="text-sm text-cyan-300/90 space-y-2">
-            <li>• A single <span className="text-cyan-100 font-semibold">[SECURE DONATE]</span> button (wallet required)</li>
+            <li>• A single <span className="text-cyan-100 font-semibold">[PRIVATE AND DONATE]</span> button (wallet required)</li>
             <li>• Your <span className="text-cyan-100 font-semibold">Receipt ID</span> + a link to open its <em>receipt account</em> on the explorer</li>
             <li>• Buttons to <span className="text-cyan-100 font-semibold">Copy</span> the ID or <span className="text-cyan-100 font-semibold">Download</span> a JSON receipt</li>
             <li>• A <span className="text-cyan-100 font-semibold">Claim Perks</span> button that carries your Receipt ID</li>
           </ul>
           <div className="mt-5">
             <a href="/donate" className="inline-flex items-center px-5 py-3 rounded-lg border-2 border-purple-500 bg-black hover:bg-purple-900/30 transition shadow-[0_0_25px_rgba(168,85,247,0.25)] font-semibold">
-              [SECURE DONATE]
+              [PRIVATE DONATE]
             </a>
           </div>
         </section>
@@ -212,11 +211,11 @@ export default function HowItWorks() {
             {[
               {
                 q: 'Do clubs need to accept crypto?',
-                a: 'No. We handle crypto end-to-end. Clubs just receive a funded subscription to FundRaisely.',
+                a: 'No. We handle crypto end-to-end. Clubs just receive a funded founding partners subscription to FundRaisely.',
               },
               {
                 q: 'Is my identity hidden?',
-                a: 'With standard SOL transfers, your wallet address is visible on-chain (normal for Solana). We do not write donor identities into receipts, and our dashboard shows only tier counts.',
+                a: 'We do not write donor identities into receipts, and our dashboard shows only tier counts.',
               },
               {
                 q: 'Is my amount hidden?',
@@ -232,7 +231,7 @@ export default function HowItWorks() {
               },
               {
                 q: 'Can I get full payment privacy?',
-                a: 'Not yet. Full sender+amount privacy would be added via Elusiv in a later phase.',
+                a: 'Not yet. But as the wallet address is not attached to the receipt PDA its get tricky to tie you to your donation.',
               },
             ].map(item => (
               <div key={item.q} className="rounded-xl border border-purple-600/30 bg-black/40 p-6">
@@ -314,7 +313,7 @@ export default function HowItWorks() {
         {/* Final CTA */}
         <section className="mt-10 flex flex-wrap gap-3">
           <a href="/donate" className="inline-flex items-center px-5 py-3 rounded-lg border-2 border-purple-500 bg-black hover:bg-purple-900/30 transition shadow-[0_0_25px_rgba(168,85,247,0.25)] font-semibold">
-            [SECURE DONATE]
+            [PRIVATE DONATE]
           </a>
           <a href="https://fundraisely.co.uk/founding-partners" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-5 py-3 rounded-lg border-2 border-cyan-400/60 hover:border-cyan-300/90 bg-black/40 hover:bg-black/60 transition">
             Subscription Benefits →

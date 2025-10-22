@@ -254,7 +254,7 @@ export default function RecipientDashboard() {
         <div className="max-w-7xl mx-auto px-6 pt-10 pb-6 relative">
           <h1 className="text-4xl md:text-5xl font-black tracking-tight">
             <span className="bg-gradient-to-r from-indigo-700 via-purple-600 to-cyan-500 text-transparent bg-clip-text">
-              FundRaisely • IMPACT Dashboard
+              FundRaisely • Impact Dashboard
             </span>
           </h1>
           <p className="mt-2 text-gray-700/90 dark:text-gray-300">

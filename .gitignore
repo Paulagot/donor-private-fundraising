@@ -15,6 +15,7 @@ pnpm-lock.yaml
 apps/*/.env
 apps/*/.env.local
 programs/*/.env
+**/.env
 
 # keypairs and secrets - CRITICAL
 **/*keypair*.json

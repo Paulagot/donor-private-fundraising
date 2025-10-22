@@ -45,9 +45,9 @@ const ARCIUM_PROGRAM_ID = new PublicKey(
 const CLUSTER_OFFSET = parseInt(process.env.ARCIUM_CLUSTER_OFFSET || '1078779259', 10);
 
 // ⚠️ CRITICAL: This MUST match the on-chain calculation
-const COMP_DEF_OFFSET = computeCompDefOffset('verify_donation');
+const COMP_DEF_OFFSET = computeCompDefOffset('verify_donation_v2');
 
-console.log('🔧 Computed COMP_DEF_OFFSET for "verify_donation":', COMP_DEF_OFFSET);
+console.log('🔧 Computed COMP_DEF_OFFSET for "verify_donation_v2":', COMP_DEF_OFFSET);
 
 // Sysvar: Instructions
 const SYSVAR_INSTRUCTIONS_PUBKEY = new PublicKey(
@@ -197,12 +197,23 @@ export class ArciumClient {
         new Uint8Array(mxePublicKey)
       );
 
-      // Encrypt amount
-      const cipher = new RescueCipher(sharedSecret);
-      const nonce = crypto.randomBytes(16);
-      const ciphertext = cipher.encrypt([BigInt(amountLamports)], nonce);
-      const ciphertext0 = ciphertext[0] || new Uint8Array(32);
-      const ciphertext1 = ciphertext[1] || new Uint8Array(32);
+// Encrypt amount (the circuit expects ONE encrypted block)
+const cipher = new RescueCipher(sharedSecret);
+const nonce = crypto.randomBytes(16);
+const ct = cipher.encrypt([BigInt(amountLamports)], nonce);
+
+// Sanity check: must be exactly 1 block
+console.log('[Arcium] encrypt() blocks:', ct.length);
+if (ct.length !== 1) {
+  throw new Error(`Expected 1 ciphertext block, got ${ct.length}. Check circuit interface.`);
+}
+
+// Use only the first (and only) block
+const ciphertext0 = ct[0];
+
+// Provide a dummy second arg to satisfy the TS call signature.
+// (Your on-chain program ignores this second block.)
+const ciphertext1 = new Uint8Array(32);
 
       // u128 nonce as BN
       const nonceBn = new BN(nonce.toString('hex'), 16);
@@ -223,7 +234,7 @@ export class ArciumClient {
       console.log('  - signPdaAccount    :', signPdaAccount.toBase58());
       console.log('  - computationAccount:', computationAccount.toBase58());
 
-      // Call verify_donation
+      // Call verify_donation_v2
       console.log('🚀 Submitting to Arcium MPC network...');
       const tx = await this.mxeProgram.methods
         .verifyDonation(

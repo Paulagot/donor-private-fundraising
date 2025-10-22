@@ -319,7 +319,7 @@ const DonateSol: React.FC = () => {
 
          {/* EXPLAINER */}
 <a
-  href="/howitworks"
+  href="/how-it-works"
   className="block mb-5 p-4 rounded-lg border-2 border-purple-500 bg-gradient-to-r from-purple-600/30 via-cyan-500/20 to-purple-600/30 hover:from-purple-500/50 hover:via-cyan-400/30 hover:to-purple-500/50 transition-all group relative overflow-hidden"
   style={{ boxShadow: '0 0 20px rgba(168, 85, 247, 0.3), inset 0 0 20px rgba(168, 85, 247, 0.1)' }}
 >
@@ -330,7 +330,7 @@ const DonateSol: React.FC = () => {
     </div>
 
     <div className="text-xs font-mono text-purple-300 group-hover:text-purple-200 transition-colors leading-relaxed">
-      • Your SOL donation funds a <span className="text-cyan-200 font-semibold">1-year subscription</span> for a school, club, community group, or charity—<span className="text-cyan-200 font-semibold">no crypto setup</span> needed for them.<br/>
+      • Your SOL donation funds a <span className="text-cyan-200 font-semibold">1-year Founding Partners Subscription</span> for a school, club, community group, or charity—<span className="text-cyan-200 font-semibold">no crypto setup</span> needed for them.<br/>
       • We verify your payment and compute your <span className="text-cyan-200 font-semibold">tier off-chain</span> with Arcium MPC, so the <span className="text-cyan-200 font-semibold">exact amount stays private</span> (only the tier is revealed).<br/>
       • The on-chain <em>receipt account</em> stores <span className="text-cyan-200 font-semibold">tier + commitment + timestamp</span>—<em>not</em> your amount or identity. (Your wallet is visible in the transfer, as per normal Solana.)
     </div>
@@ -410,7 +410,7 @@ const DonateSol: React.FC = () => {
                   : 'bg-gray-900 text-gray-600 border-gray-700 cursor-not-allowed'
               }`}
             >
-              {connected ? '[SECURE] ARCIUM MPC' : '[WALLET REQUIRED]'}
+              {connected ? '[Privte and Secure Donate] ARCIUM MPC' : '[WALLET REQUIRED]'}
             </button>
           </div>
 
