@@ -139,7 +139,7 @@ export default function ClaimBenefitsPage() {
           {/* CTA row */}
           <div className="mt-6 flex flex-col sm:flex-row gap-3">
             <a
-              href="/donate"
+              href="/donate/sol"
               className="inline-flex items-center justify-center px-5 py-3 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
             >
               Make a Donation

@@ -198,7 +198,7 @@ const RevealTransition: React.FC<RevealTransitionProps> = ({ onComplete }) => {
               stage === 'glitch' ? 'text-purple-400' :
               'text-cyan-400 font-mono'
             }`}>
-              {stage === 'initial' ? 'Goes Private' : stage === 'glitch' ? 'GOES Private' : '>> GOES_Private'}
+              {stage === 'initial' ? 'GOES PRIVATE' : stage === 'glitch' ? 'GOES PRIVATE' : '>> GOES_PRIVATE'}
             </p>
           </div>
 
@@ -209,7 +209,7 @@ const RevealTransition: React.FC<RevealTransitionProps> = ({ onComplete }) => {
                 {'>> '}INITIALIZING PRIVACY MODE{' <<'}
               </p>
               <p className="text-sm sm:text-base text-cyan-600 font-mono">
-                PRIVACY_PROTOCOL: ACTIVE // CYPHERPUNK_MODE: ENABLED
+                PRIVACY_PRESERVING_DONATIONS_PROTOCOL: ACTIVE // CYPHERPUNK_MODE: ENABLED
               </p>
             </div>
           )}

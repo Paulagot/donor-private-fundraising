@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import DonationWithReveal from './pages/DonationWithReveal';
+import DonateSol from './pages/DonateSol';               // ⬅️ use DonateSol directly
 import RecipientDashboard from './pages/RecipientDashboard';
-import ClaimBenefits from './pages/ClaimPage';  // ADD THIS LINE
+import ClaimBenefits from './pages/ClaimPage';
 import HowItWorks from './pages/HowItWorks';
+import HomeIntro from './pages/HomeIntro';               // ⬅️ new
 import './index.css';
 
 // Wallet adapter imports
@@ -19,17 +20,10 @@ import { clusterApiUrl } from '@solana/web3.js';
 // Default styles that can be overridden by your app
 import '@solana/wallet-adapter-react-ui/styles.css';
 
-// A wrapper component to provide wallet context and routing
 const Root: React.FC = () => {
-  // Use devnet by default; fall back to the Vite RPC URL if provided
   const network = 'devnet';
   const endpoint = import.meta.env.VITE_RPC_URL || clusterApiUrl(network);
-  const wallets = useMemo(() => {
-    return [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-    ];
-  }, []);
+  const wallets = useMemo(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()], []);
 
   return (
     <ConnectionProvider endpoint={endpoint}>
@@ -37,11 +31,18 @@ const Root: React.FC = () => {
         <WalletModalProvider>
           <BrowserRouter>
             <Routes>
-              <Route path="/donate/sol" element={<DonationWithReveal />} />
+              {/* Root: show intro, then redirect to /how-it-works */}
+              <Route path="/" element={<HomeIntro />} />
+
+              {/* Donation route goes straight to DonateSol (no intro) */}
+              <Route path="/donate/sol" element={<DonateSol />} />
+
               <Route path="/dashboard" element={<RecipientDashboard />} />
-              <Route path="/claim" element={<ClaimBenefits />} />  {/* ADD THIS LINE */}
+              <Route path="/claim" element={<ClaimBenefits />} />
               <Route path="/how-it-works" element={<HowItWorks />} />
-              <Route path="*" element={<Navigate to="/donate/sol" replace />} />
+
+              {/* Fallback now goes to /how-it-works */}
+              <Route path="*" element={<Navigate to="/how-it-works" replace />} />
             </Routes>
           </BrowserRouter>
         </WalletModalProvider>

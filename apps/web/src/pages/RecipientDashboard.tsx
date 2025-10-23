@@ -1,15 +1,21 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts';
 
-const TIPJAR_PROGRAM_ID = new PublicKey('7YaPMHgDfdBxc3jBXKUDGk87yZ3VjAaA57FoiRy5VG7q');
-const RPC_URL = 'https://api.devnet.solana.com';
+// ---- Safe env shim (prevents TS “import.meta.env” errors) ----
+const env = (import.meta as any)?.env || {};
 
-// >>> NEW: recipient wallet we read for live balance
-const RECIPIENT_WALLET = new PublicKey('7koYv1dqqHWh4PQ5bVh8CyLBTxqAHeARPiuazzF2FhCY');
+// --- Config (env overrides with sensible defaults) ---
+const PROGRAM_ID = new PublicKey(
+  env.VITE_TIPJAR_PROGRAM_ID || '7YaPMHgDfdBxc3jBXKUDGk87yZ3VjAaA57FoiRy5VG7q'
+);
+const RPC_URL: string = env.VITE_SOLANA_RPC || 'https://api.devnet.solana.com';
+const RECIPIENT_WALLET = new PublicKey(
+  env.VITE_DONATION_SOL_ADDRESS || '7koYv1dqqHWh4PQ5bVh8CyLBTxqAHeARPiuazzF2FhCY'
+);
 
 const TIER_COLORS = ['#94a3b8', '#3b82f6', '#8b5cf6', '#f59e0b'];
 const TIER_NAMES = ['Bronze', 'Silver', 'Gold', 'Platinum'];
@@ -31,22 +37,19 @@ interface Receipt {
   commitment: string;
   date: string;
 }
-
 interface Stats {
   totalDonations: number;
   tierBreakdown: number[]; // length 4
 }
-
 interface ChartData {
   name: string;
   count: number;
   tier: number;
-  [key: string]: string | number;
 }
-
 type LeaderboardEntry = { name: string; votes: number };
 
-// ---------- Helpers (deterministic mock + LS aggregation) ----------
+// ---------- Helpers ----------
+const formatSOL = (n: number) => `${n.toFixed(2)} SOL`;
 function seededHash(str: string): number {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < str.length; i++) {
@@ -73,56 +76,59 @@ export default function RecipientDashboard() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats>({ totalDonations: 0, tierBreakdown: [0, 0, 0, 0] });
-
-  // NEW: live wallet balance (SOL)
   const [walletSol, setWalletSol] = useState<number>(0);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // ----- Fetch on-chain receipts + wallet balance -----
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const connection = new Connection(RPC_URL, 'confirmed');
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const connection = new Connection(RPC_URL, 'confirmed');
 
-        // 1) Receipts
-        // dataSize: 49 -> 8 discriminator + 1 tier + 32 commitment + 8 ts
-        const accounts = await connection.getProgramAccounts(TIPJAR_PROGRAM_ID, {
-          filters: [{ dataSize: 49 }],
-        });
+      // Receipts: 49 bytes (8 discriminator + 1 tier + 32 commitment + 8 ts)
+      const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
+        filters: [{ dataSize: 49 }],
+      });
 
-        const parsed: Receipt[] = accounts.map(({ pubkey, account }) => {
-          const tier = account.data[8];
-          const timestamp = Number(account.data.readBigInt64LE(41));
-          const commitment = account.data.slice(9, 41).toString('hex');
-          return {
-            pda: pubkey.toBase58(),
-            tier,
-            timestamp,
-            commitment,
-            date: new Date(timestamp * 1000).toLocaleDateString(),
-          };
-        });
+      const parsed: Receipt[] = accounts.map(({ pubkey, account }) => {
+        const tier = account.data[8];
+        const timestamp = Number(account.data.readBigInt64LE(41));
+        const commitment = account.data.slice(9, 41).toString('hex');
+        return {
+          pda: pubkey.toBase58(),
+          tier,
+          timestamp,
+          commitment,
+          date: new Date(timestamp * 1000).toLocaleDateString(),
+        };
+      });
 
-        parsed.sort((a, b) => b.timestamp - a.timestamp);
+      parsed.sort((a, b) => b.timestamp - a.timestamp);
 
-        const tierBreakdown = [0, 0, 0, 0];
-        parsed.forEach(r => { if (r.tier >= 0 && r.tier <= 3) tierBreakdown[r.tier]++; });
+      const tierBreakdown = [0, 0, 0, 0];
+      parsed.forEach(r => { if (r.tier >= 0 && r.tier <= 3) tierBreakdown[r.tier]++; });
 
-        setReceipts(parsed);
-        setStats({ totalDonations: parsed.length, tierBreakdown });
+      setReceipts(parsed);
+      setStats({ totalDonations: parsed.length, tierBreakdown });
 
-        // 2) Live wallet balance (SOL)
-        const lamports = await connection.getBalance(RECIPIENT_WALLET, 'confirmed');
-        setWalletSol(lamports / LAMPORTS_PER_SOL);
-      } catch (e) {
-        console.error('Error fetching receipts/balance:', e);
-      } finally {
-        setLoading(false);
-      }
-    })();
+      // Live wallet balance
+      const lamports = await connection.getBalance(RECIPIENT_WALLET, 'confirmed');
+      setWalletSol(lamports / LAMPORTS_PER_SOL);
+
+      setLastUpdated(new Date());
+    } catch (e: any) {
+      console.error('Error fetching receipts/balance:', e);
+      setError(e?.message || 'Failed to fetch data');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // ----- Voting snapshot (aggregate any fr_lb_* leaderboards if present; else seeded mock) -----
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // ----- Voting snapshot (mock/aggregate) -----
   const votingSnapshot = useMemo<LeaderboardEntry[]>(() => {
     const lbKeys = safeLocalStorageKeys('fr_lb_');
     if (lbKeys.length === 0) return seededLeaderboard('dashboard');
@@ -138,38 +144,23 @@ export default function RecipientDashboard() {
     return sum > 0 ? merged : seededLeaderboard('dashboard');
   }, []);
 
-  // ---------- Live pool math (1 SOL = 1 subscription) ----------
-  // Platinum (premium) donations count:
+  // ---------- Pool math (1 SOL = 1 subscription) ----------
   const platinumCount = stats.tierBreakdown[3] || 0;
-
-  // Take wallet balance, subtract 1 SOL for every platinum to isolate pooled funds (tiers 0–2 only).
-  // Clamp at >= 0 to be safe.
   const pooledSOLRaw = Math.max(0, walletSol - platinumCount * 1);
-
-  // How many full subscriptions funded by the pooled tiers:
   const pooledFundedCount = Math.floor(pooledSOLRaw);
-
-  // Remainder toward next pooled subscription:
   const poolRemainderSOL = pooledSOLRaw - pooledFundedCount; // 0.. <1
-
-  // Percentage toward next subscription:
   const poolPct = Math.round(poolRemainderSOL * 100);
 
   // ---------- Charities Granted ----------
-  // 1) Platinum grants come from fr_grant_* keys (earmarked by donors).
   const platinumGrants = useMemo(() => {
     const keys = safeLocalStorageKeys('fr_grant_');
     const items: string[] = [];
     keys.forEach(k => {
-      try {
-        const val = localStorage.getItem(k);
-        if (val) items.push(val);
-      } catch {}
+      try { const val = localStorage.getItem(k); if (val) items.push(val); } catch {}
     });
     return Array.from(new Set(items));
   }, []);
 
-  // 2) Pool grants: maintain a list in LS `fr_pool_grants` (array of names).
   const [poolGrants, setPoolGrants] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem('fr_pool_grants');
@@ -178,35 +169,23 @@ export default function RecipientDashboard() {
     return [];
   });
 
-  // Ensure poolGrants length matches pooledFundedCount by auto-awarding to top charities not already granted.
   useEffect(() => {
     try {
-      if (poolGrants.length >= pooledFundedCount) {
-        // already at or above target
-        return;
-      }
+      if (poolGrants.length >= pooledFundedCount) return;
       const already = new Set([...poolGrants, ...platinumGrants]);
       const sorted = votingSnapshot.slice().sort((a, b) => b.votes - a.votes).map(r => r.name);
 
       const next: string[] = [];
       for (const name of sorted) {
-        if (!already.has(name)) {
-          next.push(name);
-          already.add(name);
-        }
+        if (!already.has(name)) { next.push(name); already.add(name); }
         if (poolGrants.length + next.length >= pooledFundedCount) break;
       }
-      // If we still need fillers, take from MOCK_CHARITIES
       if (poolGrants.length + next.length < pooledFundedCount) {
         for (const name of MOCK_CHARITIES) {
-          if (!already.has(name)) {
-            next.push(name);
-            already.add(name);
-          }
+          if (!already.has(name)) { next.push(name); already.add(name); }
           if (poolGrants.length + next.length >= pooledFundedCount) break;
         }
       }
-
       if (next.length > 0) {
         const updated = [...poolGrants, ...next];
         setPoolGrants(updated);
@@ -218,15 +197,9 @@ export default function RecipientDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pooledFundedCount, votingSnapshot, platinumGrants.length]);
 
-  const allGranted = useMemo(() => {
-    // Show pool grants first, then platinum, with small labels
-    return {
-      pool: poolGrants,
-      platinum: platinumGrants,
-    };
-  }, [poolGrants, platinumGrants]);
+  const allGranted = useMemo(() => ({ pool: poolGrants, platinum: platinumGrants }), [poolGrants, platinumGrants]);
 
-  // ---------- Charts (kept) ----------
+  // ---------- Charts ----------
   const tierChartData: ChartData[] = [
     { name: 'Bronze (0.1–0.25)', count: stats.tierBreakdown[0], tier: 0 },
     { name: 'Silver (0.25–0.5)', count: stats.tierBreakdown[1], tier: 1 },
@@ -251,7 +224,7 @@ export default function RecipientDashboard() {
       {/* Brand header */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none opacity-40 blur-2xl bg-gradient-to-tr from-indigo-300 via-purple-300 to-cyan-300 dark:from-purple-900/40 dark:via-cyan-900/30 dark:to-indigo-900/30" />
-        <div className="max-w-7xl mx-auto px-6 pt-10 pb-6 relative">
+        <div className="max-w-7xl mx-auto px-6 pt-10 pb-3 relative">
           <h1 className="text-4xl md:text-5xl font-black tracking-tight">
             <span className="bg-gradient-to-r from-indigo-700 via-purple-600 to-cyan-500 text-transparent bg-clip-text">
               FundRaisely • Impact Dashboard
@@ -263,25 +236,47 @@ export default function RecipientDashboard() {
         </div>
       </div>
 
+      {/* ACTION BAR (Donate / How it works / Claim + Refresh) */}
+      <div className="sticky top-0 z-20 bg-white/80 dark:bg-black/70 backdrop-blur border-b border-indigo-200/60 dark:border-gray-800">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex flex-wrap items-center gap-3 justify-between">
+          <div className="flex gap-2">
+            <a href="/donate/sol" aria-label="Donate privately" className="inline-flex items-center px-4 py-2 rounded-lg border border-purple-500/70 text-purple-100 bg-purple-700 hover:bg-purple-600 text-sm font-semibold">Donate</a>
+            <a href="/how-it-works" aria-label="How it works" className="inline-flex items-center px-4 py-2 rounded-lg border border-cyan-500/70 text-cyan-100 bg-cyan-700 hover:bg-cyan-600 text-sm font-semibold">How it works</a>
+            <a href="/claim" aria-label="Claim perks" className="inline-flex items-center px-4 py-2 rounded-lg border border-indigo-500/70 text-indigo-100 bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">Claim perks</a>
+          </div>
+          <div className="flex items-center gap-3">
+            {lastUpdated && (
+              <span className="text-xs text-gray-600 dark:text-gray-400">Updated {lastUpdated.toLocaleTimeString()}</span>
+            )}
+            <button onClick={fetchData} aria-label="Refresh data" className="inline-flex items-center px-3 py-2 rounded-lg border border-gray-400/40 hover:border-gray-300 text-xs text-gray-700 dark:text-gray-200 hover:bg-white/10">
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-6 pb-16">
+        {/* Error banner */}
+        {error && (
+          <div className="mt-6 mb-4 rounded-lg border border-red-500/40 bg-red-900/20 text-red-200 px-4 py-3">
+            <strong className="mr-2">Data error:</strong>{error}
+          </div>
+        )}
+
         {/* KPI Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8 mt-6">
           <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur rounded-lg p-6 border border-indigo-200/60 dark:border-gray-800">
             <div className="text-gray-500 text-sm mb-1">Total Donations</div>
             <div className="text-3xl font-extrabold text-indigo-600 dark:text-indigo-400">{stats.totalDonations}</div>
             <div className="text-xs text-gray-500 mt-1">Count of on-chain receipts</div>
           </div>
 
-          {/* NEW: Estimated Total Received FROM WALLET (live) */}
           <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur rounded-lg p-6 border border-indigo-200/60 dark:border-gray-800">
             <div className="text-gray-500 text-sm mb-1">Total Received</div>
-            <div className="text-3xl font-extrabold">
-              {walletSol.toFixed(2)} <span className="text-sm">SOL</span>
-            </div>
+            <div className="text-3xl font-extrabold">{formatSOL(walletSol)}</div>
             <div className="text-xs text-gray-500 mt-1">Live: recipient wallet balance</div>
           </div>
 
-          {/* Per-tier small cards (kept) */}
           {stats.tierBreakdown.map((count, tier) => (
             <div key={tier} className="bg-white/70 dark:bg-gray-900/70 backdrop-blur rounded-lg p-6 border border-indigo-200/60 dark:border-gray-800">
               <div className="text-gray-500 text-sm mb-1">{TIER_NAMES[tier]}</div>
@@ -292,35 +287,23 @@ export default function RecipientDashboard() {
 
         {/* Pool snapshot + Grants + Voting snapshot */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* NEW: Pool snapshot (from wallet - platinum) */}
           <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur rounded-lg p-6 border border-indigo-200/60 dark:border-gray-800">
             <h2 className="text-lg font-bold mb-2">Pooled Fund (Bronze/Silver/Gold)</h2>
             <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
               1 SOL = 1 subscription. We subtract {platinumCount} SOL for Platinum grants to isolate pooled funds.
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm mb-2">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">Funded (pool)</span>
-                <span>{pooledFundedCount} subs</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="font-medium">Current remainder</span>
-                <span>{poolRemainderSOL.toFixed(2)} / 1.00 SOL</span>
-              </div>
+              <div className="flex items-center justify-between"><span className="font-medium">Funded (pool)</span><span>{pooledFundedCount} subs</span></div>
+              <div className="flex items-center justify-between"><span className="font-medium">Current remainder</span><span>{poolRemainderSOL.toFixed(2)} / 1.00 SOL</span></div>
             </div>
             <div className="w-full h-3 bg-gray-200 dark:bg-gray-800 rounded overflow-hidden mb-1">
-              <div
-                className="h-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-500"
-                style={{ width: `${poolPct}%`, transition: 'width .4s ease' }}
-              />
+              <div className="h-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-cyan-500" style={{ width: `${poolPct}%`, transition: 'width .4s ease' }} />
             </div>
             <div className="text-xs text-gray-500">{poolPct}% to next subscription</div>
           </div>
 
-          {/* Charities Granted (Pool + Platinum) */}
           <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur rounded-lg p-6 border border-indigo-200/60 dark:border-gray-800">
             <h2 className="text-lg font-bold mb-2">Charities Granted</h2>
-
             <div className="mb-2 text-xs text-gray-500">Pooled subscriptions:</div>
             {allGranted.pool.length === 0 ? (
               <div className="text-sm text-gray-500 mb-3">No pooled grants yet.</div>
@@ -358,7 +341,6 @@ export default function RecipientDashboard() {
             </div>
           </div>
 
-          {/* Voting snapshot (mock/aggregated) */}
           <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur rounded-lg p-6 border border-indigo-200/60 dark:border-gray-800">
             <h2 className="text-lg font-bold mb-2">Current Voting Snapshot</h2>
             <div className="text-xs text-gray-500 mb-3">Aggregated locally (mock) — for illustration only.</div>
@@ -387,7 +369,7 @@ export default function RecipientDashboard() {
           </div>
         </div>
 
-        {/* Tier charts (kept) */}
+        {/* Tier charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur rounded-lg p-6 border border-indigo-200/60 dark:border-gray-800">
             <h2 className="text-xl font-bold mb-4">Tier Distribution</h2>
@@ -411,11 +393,13 @@ export default function RecipientDashboard() {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={pieData}
-                  cx="50%" cy="50%" dataKey="count"
+                  data={pieData as any}   // satisfy recharts typing
+                  cx="50%"
+                  cy="50%"
+                  dataKey="count"
                   labelLine={false}
-                  label={({ payload, percent }: { payload?: any; percent?: number }) =>
-                    `${(payload?.name ?? '').split(' ')[0]}: ${((percent ?? 0) * 100).toFixed(0)}%`
+                  label={(props: any) =>
+                    `${(props?.payload?.name ?? '').split(' ')[0]}: ${((props?.percent ?? 0) * 100).toFixed(0)}%`
                   }
                   outerRadius={80}
                 >
@@ -429,7 +413,7 @@ export default function RecipientDashboard() {
           </div>
         </div>
 
-        {/* Privacy blurb (kept) */}
+        {/* Privacy blurb */}
         <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-4 mb-8">
           <div className="flex items-start">
             <span className="text-2xl mr-3">🔒</span>
@@ -442,7 +426,7 @@ export default function RecipientDashboard() {
           </div>
         </div>
 
-        {/* Recent receipts (kept) */}
+        {/* Recent receipts */}
         <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur rounded-lg border border-indigo-200/60 dark:border-gray-800 overflow-hidden">
           <div className="p-6 border-b border-indigo-200/40 dark:border-gray-800">
             <h2 className="text-xl font-bold">Recent Donations</h2>
@@ -478,6 +462,7 @@ export default function RecipientDashboard() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-indigo-500 hover:text-indigo-400 font-mono"
+                        aria-label={`Open receipt ${receipt.pda} on Solana explorer`}
                       >
                         {receipt.pda.slice(0, 8)}…
                       </a>
@@ -498,4 +483,5 @@ export default function RecipientDashboard() {
     </div>
   );
 }
+
 
