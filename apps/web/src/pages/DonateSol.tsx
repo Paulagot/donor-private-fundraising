@@ -55,13 +55,15 @@ async function findReceiptPdaByCommitment(conn: Connection, programId: PublicKey
   return undefined;
 }
 
+// truncate to exactly 4 decimal places without rounding up
+const to4dp = (n: number) => Math.floor(n * 10_000) / 10_000;
+
 const DonateSol: React.FC = () => {
   const recipient = import.meta.env.VITE_DONATION_SOL_ADDRESS as string;
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   const [reference, setReference] = useState<Keypair>();
-  const [amount, setAmount] = useState<string>('0.1');
-  const [customAmount, setCustomAmount] = useState<string>('');
+  const [amount, setAmount] = useState<string>(''); // starts empty (no 0.01 shown)
   const [txSig, setTxSig] = useState('');
   const [loading, setLoading] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -84,96 +86,9 @@ const DonateSol: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const effectiveAmount = customAmount || amount;
-
-  // NOTE: simple transfer kept for compatibility, but hidden from UI
-  const handleDonateSimple = () => {
-    if (!publicKey || !reference) return;
-    (async () => {
-      try {
-        const amountNum = Number(effectiveAmount);
-        if (!Number.isFinite(amountNum) || amountNum <= 0) throw new Error('Enter a valid amount');
-        const lamports = Math.round(amountNum * LAMPORTS_PER_SOL);
-
-        if (publicKey.toBase58() === recipient) throw new Error('Donation address must be different from your connected wallet.');
-
-        const transferIx = SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: new PublicKey(recipient),
-          lamports,
-        });
-
-        // Solana Pay reference
-        transferIx.keys.push({ pubkey: reference.publicKey, isSigner: false, isWritable: false });
-
-        const tx = new Transaction().add(transferIx);
-        const latest = await connection.getLatestBlockhash('finalized');
-
-        const signature = await sendTransaction(tx, connection, {
-          skipPreflight: true,
-          preflightCommitment: 'processed',
-        });
-        dlog('Sent tx', { signature });
-
-        await connection.confirmTransaction(
-          { signature, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
-          'confirmed'
-        );
-        setTxSig(signature);
-      } catch (err: any) {
-        console.error(err);
-        if (Array.isArray(err?.logs)) dlog('on-chain logs:', err.logs);
-        if (Array.isArray(err?.value?.logs)) dlog('on-chain logs (value):', err.value.logs);
-        if (typeof err?.message === 'string') dlog('error message:', err.message);
-      }
-    })();
-  };
-
-  // PRIVATE flow → auto-submits receipt with isPrivate=true
-  const handleTestPrivate = () => {
-    if (!publicKey || !reference) return;
-    (async () => {
-      try {
-        const amountNum = Number(effectiveAmount);
-        if (!Number.isFinite(amountNum) || amountNum <= 0) throw new Error('Enter a valid amount');
-        const lamports = Math.round(amountNum * LAMPORTS_PER_SOL);
-
-        if (publicKey.toBase58() === recipient) throw new Error('Donation address must be different from your connected wallet.');
-
-        const transferIx = SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: new PublicKey(recipient),
-          lamports,
-        });
-
-        transferIx.keys.push({ pubkey: reference.publicKey, isSigner: false, isWritable: false });
-
-        const tx = new Transaction().add(transferIx);
-        const latest = await connection.getLatestBlockhash('finalized');
-
-        const signature = await sendTransaction(tx, connection, {
-          skipPreflight: true,
-          preflightCommitment: 'processed',
-        });
-        dlog('🔐 Sent tx', { signature });
-
-        await connection.confirmTransaction(
-          { signature, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
-          'confirmed'
-        );
-
-        setTxSig(signature);
-
-        dlog('🔐 Auto-submitting to API with isPrivate=true');
-        await handleSubmitReceipt(signature, lamports, true);
-      } catch (err: any) {
-        console.error('🔐 TEST PRIVATE ERROR:', err);
-        if (Array.isArray(err?.logs)) dlog('on-chain logs:', err.logs);
-        if (Array.isArray(err?.value?.logs)) dlog('on-chain logs (value):', err.value.logs);
-        if (typeof err?.message === 'string') dlog('error message:', err.message);
-      }
-    })();
-  };
+  const effectiveAmount = amount?.trim();
+  const amountNum = Number(effectiveAmount);
+  const amountValid = Number.isFinite(amountNum) && amountNum > 0;
 
   const handleSubmitReceipt = async (
     sigOverride?: string,
@@ -185,7 +100,12 @@ const DonateSol: React.FC = () => {
     setReceipt(null);
     try {
       const sigToUse = sigOverride || txSig.trim();
-      const lamportsToUse = lamportsOverride || Math.floor(parseFloat(effectiveAmount || '0') * 1e9);
+
+      // ensure we only consider up to 4 decimal places of SOL
+      const amt = Number(effectiveAmount || '0');
+      const amt4 = to4dp(amt);
+      const lamportsToUse =
+        lamportsOverride ?? Math.round(amt4 * LAMPORTS_PER_SOL);
 
       const body = {
         txSig: sigToUse,
@@ -194,7 +114,7 @@ const DonateSol: React.FC = () => {
         isPrivate,
       };
 
-      dlog(isPrivate ? '🔐 Submitting PRIVATE receipt' : 'Submitting simple receipt', body);
+      dlog(isPrivate ? '🔐 Submitting PRIVATE receipt' : 'Submitting STANDARD receipt', body);
 
       const res = await fetch(`${apiUrl}/arcium/verify`, {
         method: 'POST',
@@ -247,7 +167,98 @@ const DonateSol: React.FC = () => {
     }
   };
 
-  // Receipt persistence tools
+  // STANDARD (public) flow → auto-submits receipt with isPrivate=false
+  const handleDonateSimple = () => {
+    if (!publicKey || !reference || !amountValid) return;
+    (async () => {
+      try {
+        const amt4 = to4dp(Number(effectiveAmount));
+        const lamports = Math.round(amt4 * LAMPORTS_PER_SOL);
+
+        if (publicKey.toBase58() === recipient) throw new Error('Donation address must be different from your connected wallet.');
+
+        const transferIx = SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: new PublicKey(recipient),
+          lamports,
+        });
+
+        // Solana Pay reference tag (kept consistent with private flow)
+        transferIx.keys.push({ pubkey: reference.publicKey, isSigner: false, isWritable: false });
+
+        const tx = new Transaction().add(transferIx);
+        const latest = await connection.getLatestBlockhash('finalized');
+
+        const signature = await sendTransaction(tx, connection, {
+          skipPreflight: true,
+          preflightCommitment: 'processed',
+        });
+        dlog('🟦 Sent STANDARD tx', { signature });
+
+        await connection.confirmTransaction(
+          { signature, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
+          'confirmed'
+        );
+
+        setTxSig(signature);
+
+        dlog('🟦 Auto-submitting to API with isPrivate=false');
+        await handleSubmitReceipt(signature, lamports, false);
+      } catch (err: any) {
+        console.error('🟦 STANDARD DONATION ERROR:', err);
+        if (Array.isArray(err?.logs)) dlog('on-chain logs:', err.logs);
+        if (Array.isArray(err?.value?.logs)) dlog('on-chain logs (value):', err.value.logs);
+        if (typeof err?.message === 'string') dlog('error message:', err.message);
+      }
+    })();
+  };
+
+  // PRIVATE flow → auto-submits receipt with isPrivate=true
+  const handleTestPrivate = () => {
+    if (!publicKey || !reference || !amountValid) return;
+    (async () => {
+      try {
+        const amt4 = to4dp(Number(effectiveAmount));
+        const lamports = Math.round(amt4 * LAMPORTS_PER_SOL);
+
+        if (publicKey.toBase58() === recipient) throw new Error('Donation address must be different from your connected wallet.');
+
+        const transferIx = SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: new PublicKey(recipient),
+          lamports,
+        });
+
+        transferIx.keys.push({ pubkey: reference.publicKey, isSigner: false, isWritable: false });
+
+        const tx = new Transaction().add(transferIx);
+        const latest = await connection.getLatestBlockhash('finalized');
+
+        const signature = await sendTransaction(tx, connection, {
+          skipPreflight: true,
+          preflightCommitment: 'processed',
+        });
+        dlog('🔐 Sent PRIVATE tx', { signature });
+
+        await connection.confirmTransaction(
+          { signature, blockhash: latest.blockhash, lastValidBlockHeight: latest.lastValidBlockHeight },
+          'confirmed'
+        );
+
+        setTxSig(signature);
+
+        dlog('🔐 Auto-submitting to API with isPrivate=true');
+        await handleSubmitReceipt(signature, lamports, true);
+      } catch (err: any) {
+        console.error('🔐 PRIVATE DONATION ERROR:', err);
+        if (Array.isArray(err?.logs)) dlog('on-chain logs:', err.logs);
+        if (Array.isArray(err?.value?.logs)) dlog('on-chain logs (value):', err.value.logs);
+        if (typeof err?.message === 'string') dlog('error message:', err.message);
+      }
+    })();
+  };
+
+  // Receipt tools
   const copyReceipt = async () => {
     if (!receipt) return;
     try { await navigator.clipboard.writeText(receipt.commitment); } catch {}
@@ -266,17 +277,18 @@ const DonateSol: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  // deep-link for claim page
   const claimUrl =
     receipt && receipt.commitment !== 'PENDING'
       ? `/claim?commitment=${encodeURIComponent(receipt.commitment)}&tier=${receipt.amountTier}`
       : '';
 
+  const buttonsDisabled = !connected || !amountValid || loading;
+
   return (
     <div className="min-h-screen bg-black text-cyan-400 overflow-hidden relative flex items-center justify-center p-2 sm:p-4">
       <style>{`
-        @keyframes heavyScanline { 0% { transform: translateY(-100%); } 100% { transform: translateY(100vh); } }
-        @keyframes verticalScanline { 0% { transform: translateX(-100%); } 100% { transform: translateX(100vw); } }
+        @keyframes heavyScanline { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
+        @keyframes verticalScanline { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
         @keyframes glitch { 0% { transform: translate(0); } 20% { transform: translate(-2px, 2px); } 40% { transform: translate(-2px, -2px); } 60% { transform: translate(2px, 2px); } 80% { transform: translate(2px, -2px); } 100% { transform: translate(0); } }
         @keyframes pulse-border { 0%, 100% { box-shadow: 0 0 5px #a855f7, 0 0 10px #a855f7, 0 0 15px #a855f7; } 50% { box-shadow: 0 0 10px #a855f7, 0 0 20px #a855f7, 0 0 30px #0ff; } }
         .heavy-scanline { position: absolute; width: 100%; height: 8px; pointer-events: none; animation: heavyScanline 6s linear infinite; }
@@ -317,35 +329,35 @@ const DonateSol: React.FC = () => {
           <p className="text-xs text-center mb-6 text-cyan-300 font-mono">{'>> '}Receipt Driven Verification{' <<'}</p>
           <p className="text-xs text-center mb-6 text-cyan-300 font-mono">{'>> '}Give privately. Get Perks.{' <<'}</p>
 
-         {/* EXPLAINER */}
-<a
-  href="/how-it-works"
-  className="block mb-5 p-4 rounded-lg border-2 border-purple-500 bg-gradient-to-r from-purple-600/30 via-cyan-500/20 to-purple-600/30 hover:from-purple-500/50 hover:via-cyan-400/30 hover:to-purple-500/50 transition-all group relative overflow-hidden"
-  style={{ boxShadow: '0 0 20px rgba(168, 85, 247, 0.3), inset 0 0 20px rgba(168, 85, 247, 0.1)' }}
->
-  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent animate-pulse" />
-  <div className="text-center relative z-10">
-    <div className="text-sm font-mono text-yellow-300 mb-2 font-bold tracking-wider">
-      HOW THIS WORKS (AMOUNT-PRIVATE)
-    </div>
+          {/* EXPLAINER */}
+          <a
+            href="/how-it-works"
+            className="block mb-5 p-4 rounded-lg border-2 border-purple-500 bg-gradient-to-r from-purple-600/30 via-cyan-500/20 to-purple-600/30 hover:from-purple-500/50 hover:via-cyan-400/30 hover:to-purple-500/50 transition-all group relative overflow-hidden"
+            style={{ boxShadow: '0 0 20px rgba(168, 85, 247, 0.3), inset 0 0 20px rgba(168, 85, 247, 0.1)' }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/10 to-transparent animate-pulse" />
+            <div className="text-center relative z-10">
+              <div className="text-sm font-mono text-yellow-300 mb-2 font-bold tracking-wider">
+                HOW THIS WORKS (AMOUNT-PRIVATE)
+              </div>
 
-    <div className="text-xs font-mono text-purple-300 group-hover:text-purple-200 transition-colors leading-relaxed">
-      • Your SOL donation funds a <span className="text-cyan-200 font-semibold">1-year Founding Partners Subscription</span> for a school, club, community group, or charity—<span className="text-cyan-200 font-semibold">no crypto setup</span> needed for them.<br/>
-      • We verify your payment and compute your <span className="text-cyan-200 font-semibold">tier off-chain</span> with Arcium MPC, so the <span className="text-cyan-200 font-semibold">exact amount stays private</span> (only the tier is revealed).<br/>
-      • The on-chain <em>receipt account</em> stores <span className="text-cyan-200 font-semibold">tier + commitment + timestamp</span>—<em>not</em> your amount or identity. (Your wallet is visible in the transfer, as per normal Solana.)
-    </div>
+              <div className="text-xs font-mono text-purple-300 group-hover:text-purple-200 transition-colors leading-relaxed">
+                • Your SOL donation funds a <span className="text-cyan-200 font-semibold">1-year Founding Partners Subscription</span> for a school, club, community group, or charity—<span className="text-cyan-200 font-semibold">no crypto setup</span> needed for them.<br/>
+                • We verify your payment and compute your <span className="text-cyan-200 font-semibold">tier off-chain</span> with Arcium MPC, so the <span className="text-cyan-200 font-semibold">exact amount stays private</span> (only the tier is revealed).<br/>
+                • The on-chain <em>receipt account</em> stores <span className="text-cyan-200 font-semibold">tier + commitment + timestamp</span>—<em>not</em> your amount or identity. (Your wallet is visible in the transfer, as per normal Solana.)
+              </div>
 
-    <div className="mt-3 text-[10px] font-mono text-cyan-300/90">
-      <span className="px-2 py-1 rounded border border-cyan-400/40 bg-black/40">
-        Amount hidden (tier-only) • Powered by Arcium
-      </span>
-    </div>
+              <div className="mt-3 text-[10px] font-mono text-cyan-300/90">
+                <span className="px-2 py-1 rounded border border-cyan-400/40 bg-black/40">
+                  Amount hidden (tier-only) • Powered by Arcium
+                </span>
+              </div>
 
-    <div className="mt-3 text-xs font-mono text-cyan-200 underline">
-      {'>> '}Learn how it works
-    </div>
-  </div>
-</a>
+              <div className="mt-3 text-xs font-mono text-cyan-200 underline">
+                {'>> '}Learn how it works
+              </div>
+            </div>
+          </a>
 
           {/* Collapsible tier benefits */}
           <details className="mb-5 border border-purple-500/40 rounded-lg">
@@ -365,33 +377,22 @@ const DonateSol: React.FC = () => {
             </div>
           </details>
 
-          {/* Amount selection */}
+          {/* Amount input only (no presets) */}
           <div className="mb-5">
-            <div className="text-xs font-mono mb-2 text-cyan-300">AMOUNT_SOL:</div>
-            <div className="grid grid-cols-4 gap-2 mb-3">
-              {[0.1, 0.25, 0.5, 1].map((amt) => (
-                <button
-                  key={amt}
-                  onClick={() => { setAmount(amt.toString()); setCustomAmount(''); }}
-                  className={`cyber-button py-2 rounded text-sm font-mono border transition-all ${
-                    (customAmount || amount) === amt.toString()
-                      ? 'bg-gradient-to-r from-purple-500 to-cyan-400 text-black border-purple-500'
-                      : 'bg-black text-cyan-400 border-purple-500 hover:bg-purple-900'
-                  }`}
-                >
-                  {amt}
-                </button>
-              ))}
-            </div>
+            <div className="text-xs font-mono mb-2 text-cyan-300">DONATION (SOL):</div>
             <input
               type="number"
-              min="0.01"
-              step="0.01"
-              value={customAmount}
-              onChange={(e) => setCustomAmount(e.target.value)}
-              placeholder="CUSTOM_AMOUNT"
+              min="0.0001"
+              step="0.0001"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="Please enter dontation amount"
               className="w-full cyber-input px-3 py-2 rounded text-sm font-mono placeholder-cyan-700 text-cyan-100"
             />
+            {!amountValid && amount !== '' && (
+              <div className="mt-1 text-[11px] text-red-400 font-mono">Enter a valid positive amount (up to 4 decimals).</div>
+            )}
           </div>
 
           {/* Wallet button */}
@@ -400,17 +401,30 @@ const DonateSol: React.FC = () => {
           </div>
 
           <div className="space-y-2 mb-5">
-            {/* PRIVATE only */}
+            {/* PRIVATE (Arcium MPC) */}
             <button
               onClick={handleTestPrivate}
-              disabled={!connected}
+              disabled={buttonsDisabled}
               className={`w-full cyber-button py-3 rounded text-sm font-mono border-2 transition-all ${
-                connected
+                !buttonsDisabled
                   ? 'bg-purple-600 text-cyan-400 border-purple-400 hover:shadow-lg hover:bg-purple-700 font-bold'
                   : 'bg-gray-900 text-gray-600 border-gray-700 cursor-not-allowed'
               }`}
             >
-              {connected ? '[Privte and Secure Donate] ARCIUM MPC' : '[WALLET REQUIRED]'}
+              {connected ? '[Private & Secure Donate] ARCIUM MPC' : '[WALLET REQUIRED]'}
+            </button>
+
+            {/* STANDARD (public) */}
+            <button
+              onClick={handleDonateSimple}
+              disabled={buttonsDisabled}
+              className={`w-full cyber-button py-3 rounded text-sm font-mono border-2 transition-all ${
+                !buttonsDisabled
+                  ? 'bg-cyan-600 text-black border-cyan-400 hover:shadow-lg hover:bg-cyan-500 font-bold'
+                  : 'bg-gray-900 text-gray-600 border-gray-700 cursor-not-allowed'
+              }`}
+            >
+              {connected ? '[Standard Donate] PUBLIC (Explorer-visible amount)' : '[WALLET REQUIRED]'}
             </button>
           </div>
 
@@ -486,7 +500,7 @@ const DonateSol: React.FC = () => {
               {/* Claim button */}
               <div className="mt-3">
                 <a
-                  href={receipt.commitment !== 'PENDING' ? `/claim?commitment=${encodeURIComponent(receipt.commitment)}&tier=${receipt.amountTier}` : '#'}
+                  href={receipt.commitment !== 'PENDING' ? claimUrl : '#'}
                   aria-disabled={receipt.commitment === 'PENDING'}
                   className={`inline-flex items-center justify-center px-4 py-2 rounded border-2 font-mono text-sm ${
                     receipt.commitment !== 'PENDING'
@@ -510,6 +524,8 @@ const DonateSol: React.FC = () => {
 };
 
 export default DonateSol;
+
+
 
 
 
