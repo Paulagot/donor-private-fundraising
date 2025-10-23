@@ -14,10 +14,10 @@ const dlog = (...args: any[]) => { if (DEBUG) console.log('[DonateSol]', ...args
 
 // Tiers (unchanged)
 const TIER_BENEFITS = [
-  { tier: 0, name: 'Bronze',   color: '#94a3b8', copy: '1 pooled vote for a charity to receive a FundRaisely subscription.' },
-  { tier: 1, name: 'Silver',   color: '#3b82f6', copy: '2 pooled votes + 1 roadmap (feature) vote.' },
-  { tier: 2, name: 'Gold',     color: '#8b5cf6', copy: '3 pooled votes + 2 roadmap (feature) votes.' },
-  { tier: 3, name: 'Platinum', color: '#f59e0b', copy: 'Directly select a charity to receive a subscription once funded.' },
+  { tier: 0, name: 'Bronze >0.10 SOL',   color: '#94a3b8', copy: '1 pooled vote for a charity to receive a FundRaisely subscription.' },
+  { tier: 1, name: 'Silver >0.25 SOL' ,   color: '#3b82f6', copy: '2 pooled votes + 1 roadmap (feature) vote.' },
+  { tier: 2, name: 'Gold >0.50 SOL',     color: '#8b5cf6', copy: '3 pooled votes + 2 roadmap (feature) votes.' },
+  { tier: 3, name: 'Platinum >1.00 SOL', color: '#f59e0b', copy: 'Directly select a charity to receive a subscription once funded.' },
 ];
 
 // Cluster + explorer helpers
@@ -343,8 +343,8 @@ const DonateSol: React.FC = () => {
 
               <div className="text-xs font-mono text-purple-300 group-hover:text-purple-200 transition-colors leading-relaxed">
                 • Your SOL donation funds a <span className="text-cyan-200 font-semibold">1-year Founding Partners Subscription</span> for a school, club, community group, or charity—<span className="text-cyan-200 font-semibold">no crypto setup</span> needed for them.<br/>
-                • We verify your payment and compute your <span className="text-cyan-200 font-semibold">tier off-chain</span> with Arcium MPC, so the <span className="text-cyan-200 font-semibold">exact amount stays private</span> (only the tier is revealed).<br/>
-                • The on-chain <em>receipt account</em> stores <span className="text-cyan-200 font-semibold">tier + commitment + timestamp</span>—<em>not</em> your amount or identity. (Your wallet is visible in the transfer, as per normal Solana.)
+                • We verify your payment and compute your <span className="text-cyan-200 font-semibold">tier off-chain</span> with Arcium MPC, so the <span className="text-cyan-200 font-semibold">exact amount stays private</span> (only the tier is revealed - view tier benefits below).<br/>
+                • The on-chain <em>receipt account</em> stores <span className="text-cyan-200 font-semibold">tier + commitment + timestamp </span>—<em> not</em> your amount or identity. (Your wallet is visible in the transfer, as per normal Solana.)
               </div>
 
               <div className="mt-3 text-[10px] font-mono text-cyan-300/90">
