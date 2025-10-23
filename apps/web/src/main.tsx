@@ -1,3 +1,4 @@
+import './polyfills';  
 import React, { useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -7,6 +8,7 @@ import ClaimBenefits from './pages/ClaimPage';
 import HowItWorks from './pages/HowItWorks';
 import HomeIntro from './pages/HomeIntro';               // ⬅️ new
 import './index.css';
+ 
 
 // Wallet adapter imports
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';

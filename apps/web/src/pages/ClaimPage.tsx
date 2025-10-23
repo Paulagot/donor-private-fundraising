@@ -5,6 +5,11 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import bs58 from 'bs58';
 import FundRaiselyBenefitClaim, { TIER_BENEFITS } from '../components/FundRaiselyBenefitClaim';
 
+import { Buffer as _Buffer } from 'buffer';
+if (typeof (globalThis as any).Buffer === 'undefined') {
+  (globalThis as any).Buffer = _Buffer;
+}
+
 const TIPJAR_PROGRAM_ID = new PublicKey('7YaPMHgDfdBxc3jBXKUDGk87yZ3VjAaA57FoiRy5VG7q');
 const RPC_URL = 'https://api.devnet.solana.com';
 

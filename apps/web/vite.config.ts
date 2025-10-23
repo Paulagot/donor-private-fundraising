@@ -8,14 +8,14 @@ export default defineConfig({
   // ✅ add these three blocks
   resolve: {
     alias: {
-      buffer: 'buffer',       // make sure imports resolve to the browser polyfill
+      buffer: 'buffer',
     },
   },
   optimizeDeps: {
-    include: ['buffer'],      // prebundle so it’s available in dev + prod
+    include: ['buffer'],
   },
   define: {
-    global: 'window',         // some libs expect a Node-like global
+    global: 'globalThis',
   },
 
   // dev (local)
