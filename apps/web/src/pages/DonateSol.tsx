@@ -415,7 +415,7 @@ const DonateSol: React.FC = () => {
             </button>
 
             {/* STANDARD (public) */}
-            <button
+            {/* <button
               onClick={handleDonateSimple}
               disabled={buttonsDisabled}
               className={`w-full cyber-button py-3 rounded text-sm font-mono border-2 transition-all ${
@@ -425,7 +425,7 @@ const DonateSol: React.FC = () => {
               }`}
             >
               {connected ? '[Standard Donate] PUBLIC (Explorer-visible amount)' : '[WALLET REQUIRED]'}
-            </button>
+            </button> */}
           </div>
 
           {/* TX input + transaction explorer link */}
