@@ -14,10 +14,10 @@ const dlog = (...args: any[]) => { if (DEBUG) console.log('[DonateSol]', ...args
 
 // Tiers (unchanged)
 const TIER_BENEFITS = [
-  { tier: 0, name: 'Bronze >0.10 SOL',   color: '#94a3b8', copy: '1 pooled vote for a charity to receive a FundRaisely subscription.' },
-  { tier: 1, name: 'Silver >0.25 SOL' ,   color: '#3b82f6', copy: '2 pooled votes + 1 roadmap (feature) vote.' },
-  { tier: 2, name: 'Gold >0.50 SOL',     color: '#8b5cf6', copy: '3 pooled votes + 2 roadmap (feature) votes.' },
-  { tier: 3, name: 'Platinum >1.00 SOL', color: '#f59e0b', copy: 'Directly select a charity to receive a subscription once funded.' },
+  { tier: 0, name: 'Bronze (Tier 0 >0.10 SOL)',   color: '#94a3b8', copy: '1 pooled vote for a charity to receive a FundRaisely subscription.' },
+  { tier: 1, name: 'Silver (Tier 1 >0.25 SOL)' ,   color: '#3b82f6', copy: '2 pooled votes + 1 roadmap (feature) vote.' },
+  { tier: 2, name: 'Gold (Tier 2 >0.50 SOL)',     color: '#8b5cf6', copy: '3 pooled votes + 2 roadmap (feature) votes.' },
+  { tier: 3, name: 'Platinum (Tier 3 >1.00 SOL)', color: '#f59e0b', copy: 'Directly select a charity to receive a subscription once funded.' },
 ];
 
 // Cluster + explorer helpers
