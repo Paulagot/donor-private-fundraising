@@ -135,4 +135,21 @@ arciumRouter.post('/init-comp-def', async (_req, res) => {
     logError('Failed to initialize comp def', { error: error.message });
     res.status(500).json({ success: false, error: error.message });
   }
+  
+});
+
+arciumRouter.get('/status', async (req, res) => {
+  try {
+    const { commitment, txSig } = req.query as { commitment?: string; txSig?: string };
+
+    // Implement however you track queued jobs:
+    // - if you key by commitment, look it up
+    // - if by txSig, derive commitment and look it up
+    // Return unified shape:
+    // { status: 'verified', receiptCommitment, amountTier, receiptTx } OR { status: 'queued' }
+    // For now, a stub:
+    return res.json({ status: 'queued' });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
 });

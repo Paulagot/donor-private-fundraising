@@ -32,6 +32,23 @@ const TIPJAR_PROGRAM_ID = new PublicKey(
 const RECEIPT_DATA_SIZE = 49;
 const toHex = (u8: Uint8Array) => Array.from(u8).map(b => b.toString(16).padStart(2, '0')).join('');
 
+// --- API origin helpers (so we never accidentally build a relative URL) ---
+function normalizeOrigin(raw?: string) {
+  if (!raw) return '';
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try { return new URL(withScheme).origin; } catch { return withScheme; }
+}
+
+const apiOrigin = (() => {
+  const env = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (env) return normalizeOrigin(env);
+  if (typeof window !== 'undefined') return window.location.origin; // same-origin fallback (if you proxy /arcium/*)
+  return '';
+})();
+
+const apiPath = (p: string) => `${apiOrigin}${p.startsWith('/') ? p : `/${p}`}`;
+// -------------------------------------------------------------
+
 async function findReceiptPdaByCommitment(conn: Connection, programId: PublicKey, commitmentHex: string): Promise<string | undefined> {
   try {
     const accounts = await conn.getProgramAccounts(programId, { filters: [{ dataSize: RECEIPT_DATA_SIZE }] });
@@ -51,7 +68,9 @@ const to4dp = (n: number) => Math.floor(n * 10_000) / 10_000;
 
 const DonateSol: React.FC = () => {
   const recipient = import.meta.env.VITE_DONATION_SOL_ADDRESS as string;
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+  // One-time debug so you can see where it will post:
+  console.log('[DonateSol] API ORIGIN:', apiOrigin, '→', apiPath('/arcium/verify'));
 
   const [reference, setReference] = useState<Keypair>();
   const [amount, setAmount] = useState<string>('');
@@ -94,7 +113,10 @@ const DonateSol: React.FC = () => {
       const amt4 = to4dp(amt);
       const lamportsToUse = lamportsOverride ?? Math.round(amt4 * LAMPORTS_PER_SOL);
 
-      const res = await fetch(`${apiUrl}/arcium/verify`, {
+      const url = apiPath('/arcium/verify');
+      console.log('[DonateSol] POST url:', url);
+
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -106,20 +128,32 @@ const DonateSol: React.FC = () => {
       });
 
       if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
+
       const json = await res.json();
       dlog('API Response:', json);
 
+      // --- tolerant parsing: accepts both server-mode and onchain/queued shapes
+      const receivedCommitment: string | undefined =
+        json.receiptCommitment ?? json.commitment;
+      const receivedTier = (json.amountTier ?? json.tier) as number | undefined;
+
       let payload: Receipt | null = null;
 
-      if (json.receiptCommitment) {
-        payload = { commitment: json.receiptCommitment, amountTier: json.amountTier, pda: json.receiptPda };
+      if (receivedCommitment) {
+        payload = {
+          commitment: receivedCommitment,
+          amountTier: typeof receivedTier === 'number' ? receivedTier : -1,
+          pda: json.receiptPda, // may be undefined
+        };
         setReceipt(payload);
         localStorage.setItem('fr_last_receipt', JSON.stringify(payload));
       } else if (json.status === 'queued') {
+        // fallback if server didn’t include commitment/tier in queued mode
         payload = { commitment: 'PENDING', amountTier: -1 };
         setReceipt(payload);
       }
 
+      // Try enrich with PDA if we have a real commitment
       if (payload && payload.commitment && payload.commitment !== 'PENDING' && !payload.pda) {
         const pda = await findReceiptPdaByCommitment(connection, TIPJAR_PROGRAM_ID, payload.commitment);
         if (pda) {
@@ -431,6 +465,7 @@ const DonateSol: React.FC = () => {
 };
 
 export default DonateSol;
+
 
 
 
