@@ -65,6 +65,11 @@ const clockAccount = PublicKey.findProgramAddressSync(
   ARCIUM_PROGRAM_ID
 )[0];
 
+// const EXECUTING_POOL_DEVNET = PublicKey.findProgramAddressSync(
+//   [Buffer.from('ExecutingPool')],
+//   ARCIUM_PROGRAM_ID
+// )[0];
+
 // ExecutingPool PDA on devnet
 const EXECUTING_POOL_DEVNET = new PublicKey(
   '7ceQdYuWwdwduqBFJADaURaNTj5NHhtYQYXLN1rRM67h'

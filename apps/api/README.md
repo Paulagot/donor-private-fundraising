@@ -1,78 +1,116 @@
-# Cypherpunk Tip Jar – API
+# FundRaisely — Privacy‑Protecting Donations · API
 
-This package provides the backend services for the Cypherpunk Tip Jar.  It exposes a REST API for verifying Solana donations using Arcium’s privacy‑preserving MPC service and (optionally) writing receipts to an on‑chain Anchor program.
+Backend services for verifying Solana donations with **Arcium** MPC and recording **receipt PDAs** via **Anchor**.
+
+> **Open‑source pledge:** MIT‑licensed and **will remain open source** after the hackathon.
+
+> **Legacy naming note:** Package name may still include *cypherpunk‑tipjar*.
+
+---
 
 ## Features
 
-- **POST /arcium/verify** – validate a transaction, compute a donation tier and queue an Arcium verification job.
-- **Health endpoint** – `GET /health` returns `{ status: "ok" }` for liveness checks.
-- **Rate limiting** – limits verification requests per client to prevent abuse.
-- **Strict input validation** – uses [Zod](https://zod.dev) to parse and validate requests.
-- **Environment‑driven configuration** – RPC URL, recipient address, Arcium credentials, callback mode and tier thresholds are configurable via `.env`.
+* `POST /arcium/verify` — validate a tx, compute donation tier, and either write a **receipt PDA** on‑chain or return the result (mode‑dependent).
+* `GET /health` — liveness probe `{ status: "ok" }`.
+* **Rate limiting** — protects verification endpoint.
+* **Strict validation** — Zod schemas for request bodies.
+* **Env‑driven config** — RPC URL, recipient, Arcium, callback mode, tier thresholds.
 
-## Getting Started
+---
 
-1. Install dependencies:
-   ```bash
-   pnpm install
-   ```
+## Environment
 
-2. Create a `.env` file based on `.env.example` and fill in the required values.  You must specify at least the donation address.
+Create `.env` from `.env.example` (or from root). **Dev example:**
 
-3. Start the server in development mode using ts‑node:
-   ```bash
-   pnpm dev
-   ```
+```ini
+RPC_URL=https://api.devnet.solana.com
+DONATION_SOL_ADDRESS=7koYv1dqqHWh4PQ5bVh8CyLBTxqAHeARPiuazzF2FhCY
 
-   The API listens on port defined in `PORT` (defaults to `3001`).  The health check is available at `/health`.
+# Optional Arcium demo bits
+ARCIUM_CLUSTER_OFFSET=1078779259
+API_SIGNER_KEYPAIR_PATH=
 
-4. To build a production bundle:
-   ```bash
-   pnpm build
-   pnpm start
-   ```
+PORT=3001
+CALLBACK_MODE=server  # or: onchain
 
-## Endpoint: POST /arcium/verify
+# Programs
+MXE_PROGRAM_ID=AuoVDGoVfQaRdKGGkrgQyfpcGrJt9P6C8AqVSkNoqo5i
+TIPJAR_PROGRAM_ID=7YaPMHgDfdBxc3jBXKUDGk87yZ3VjAaA57FoiRy5VG7q
 
-Request body:
+# CORS
+PUBLIC_WEBSITE_ORIGIN=http://localhost:5173
+```
+
+**Tier thresholds** (lamports) can be configured (e.g., `MIN_TIER_LAMPORTS_0..3`) or via a JSON blob depending on implementation.
+
+---
+
+## Run & build
+
+```bash
+pnpm install
+pnpm dev     # ts-node dev server
+pnpm build   # tsc → dist/
+pnpm start   # node dist/index.js
+```
+
+---
+
+## API — `POST /arcium/verify`
+
+**Request body**
 
 ```json
 {
-  "txSig": "<transaction signature>",
-  "reference": "<optional reference public key>",
+  "txSig": "<solana tx signature>",
+  "reference": "<optional reference pubkey>",
   "minLamports": 100000000
 }
 ```
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `txSig` | string | Transaction signature on Solana devnet. Must include a transfer to the recipient address with at least `minLamports` lamports. |
-| `reference` | string (optional) | The reference public key appended to the Solana Pay URL.  Used to link the donation to a receipt; not validated server‑side. |
-| `minLamports` | number | Minimum required donation in lamports (1 SOL = 1 000 000 000 lamports). |
+**Server flow**
 
-The server performs the following steps:
+1. Fetch tx by `txSig` from `RPC_URL` (devnet); ensure transfer to `DONATION_SOL_ADDRESS` ≥ `minLamports`.
+2. Map amount → **tier** using configured thresholds.
+3. Produce **commitment** (Arcium MPC in production; deterministic stub acceptable in dev).
+4. If `CALLBACK_MODE=onchain`, sign and write **receipt PDA** via Anchor; else, return `{ status: "verified", tier, receiptCommitment }`.
 
-1. **Sanity check the transaction** – queries the Solana RPC to confirm the signature exists and that it transfers at least `minLamports` to the configured `DONATION_SOL_ADDRESS`.
-2. **Compute donation tier** – maps the amount to one of four tiers based on thresholds defined by `MIN_TIER_LAMPORTS_0..3`.
-3. **Generate receipt commitment** – for local development this is a deterministic hash of `txSig` and the tier; in a production deployment this would be produced by the Arcium MPC service.
-4. **Respond** – returns either `{ status: "verified", receiptCommitment, amountTier }` if `CALLBACK_MODE=server` or `{ status: "queued", reference }` if `CALLBACK_MODE=onchain`.
+**Response (server mode)**
 
-## Environment variables
+```json
+{
+  "status": "verified",
+  "tier": "gold",
+  "receiptCommitment": "...",
+  "receiptPubkey": "<optional, when written>"
+}
+```
 
-The API reads environment variables from `.env` at the repository root or from its own `.env`.  The most important variables are listed below:
-
-| Variable | Description |
-| --- | --- |
-| `RPC_URL` | RPC endpoint for querying transactions.  Falls back to the root `SHARED_RPC_URL` if not set. |
-| `DONATION_SOL_ADDRESS` | Public key that must receive donations. |
-| `ARCIUM_API_KEY` / `ARCIUM_CLUSTER` | Authentication for Arcium (placeholders in this MVP). |
-| `CALLBACK_MODE` | `onchain` to instruct Arcium to call the Anchor program or `server` to return the result directly. |
-| `TIPJAR_PROGRAM_ID` | Program ID of the Anchor receipt program.  Required for on‑chain callbacks. |
-| `MIN_TIER_LAMPORTS_0..3` | Donation thresholds in lamports for tiers 0–3 (defaults correspond to ≥0.1, ≥0.25, ≥0.5 and ≥1 SOL). |
-| `PUBLIC_WEBSITE_ORIGIN` | Allowed origin for CORS.  Should match your front‑end URL. |
-| `PORT` | Port on which the API listens. |
+---
 
 ## Notes
 
-- The Arcium integration is stubbed in this MVP.  In a real deployment you would call the Arcium client SDK with the encrypted inputs and verify the returned commitment using their recommended flow.
-- The on‑chain callback mode does not actually write to the Anchor program in this implementation.  A production version would create a signed transaction calling the program’s `complete_receipt` instruction with the computed tier and commitment.
+* Keep Arcium credentials **server‑side**.
+* Do **not** log raw donation amounts.
+* Validate `reference` if your front‑end uses reference‑based discovery.
+
+---
+
+## Scripts (from package.json)
+
+```json
+{
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts"
+  }
+}
+```
+
+---
+
+## License
+
+**MIT** — This API **will remain open source**.

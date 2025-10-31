@@ -1,6 +1,12 @@
-# Cypherpunk Tip Jar – Web
+# FundRaisely — Privacy‑Protecting Donations · Web
 
-This package contains the React front‑end for the Cypherpunk Tip Jar.  It renders the `/donate/sol` page where donors can scan a Solana Pay QR code, choose a donation amount and send SOL either publicly or privately.  After sending, the page can request an Arcium‑verified receipt via the API.
+React/Vite front‑end for the donation portal. Renders `/donate/sol`, generates per‑session **reference** keys, shows a **Solana Pay** QR, and fetches **privacy‑preserving receipts**.
+
+> **Open‑source pledge:** MIT‑licensed and **will remain open source** after the hackathon.
+
+> **Legacy naming note:** Package name may still include *cypherpunk‑tipjar*.
+
+---
 
 ## Development
 
@@ -9,30 +15,60 @@ pnpm install
 pnpm dev
 ```
 
-The application will be served at `http://localhost:5173`.  By default, it redirects all routes to `/donate/sol`.  During development the API URL is configured via `VITE_API_URL` in `.env`.
+* App: [http://localhost:5173](http://localhost:5173) (dev)
+* Default route redirects to `/donate/sol`.
 
-### Environment variables
+**Environment** — create `.env` from `.env.example`:
 
-Create a `.env` file based on `.env.example` and populate the following values:
+```ini
+VITE_DONATION_SOL_ADDRESS=7koYv1dqqHWh4PQ5bVh8CyLBTxqAHeARPiuazzF2FhCY
+VITE_API_URL=http://localhost:3001
+VITE_TIPJAR_PROGRAM_ID=7YaPMHgDfdBxc3jBXKUDGk87yZ3VjAaA57FoiRy5VG7q
+# Optional: VITE_RPC_URL (defaults to devnet if omitted)
+```
 
-| Variable | Description |
-| --- | --- |
-| `VITE_RPC_URL` | Optional RPC endpoint for querying transactions.  Defaults to devnet. |
-| `VITE_DONATION_SOL_ADDRESS` | Recipient Solana public key. |
-| `VITE_API_URL` | Base URL of the backend API. |
+---
 
-### Scripts
+## What the UI does
 
-| Script | Description |
-| --- | --- |
-| `pnpm dev` | Starts Vite in development mode. |
-| `pnpm build` | Builds the production bundle. |
-| `pnpm preview` | Serves the production bundle locally. |
-| `pnpm lint` | Runs ESLint on the source files. |
+* Creates a per‑session **reference** (`@solana/web3.js`) and appends it to the Solana Pay URL.
+* Renders a **QR code** (react‑qr‑code) that updates as the amount changes.
+* Offers a “Donate Privately” path (Elusiv/Light Protocol **stubs** for now; integrate SDKs for real shield/unshield flows).
+* After sending, donors paste the **tx signature**; the app calls the API to request an **Arcium‑verified** receipt.
+* (Suggested enhancement) Auto‑discover signatures by reference using `getSignaturesForAddress` + `getTransaction`.
+
+---
+
+## Scripts
+
+```json
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 8080 --strictPort",
+    "lint": "eslint src --ext .ts,.tsx"
+  }
+}
+```
+
+**Build & preview**
+
+```bash
+pnpm build
+pnpm preview  # http://localhost:8080
+```
+
+---
 
 ## Notes
 
-- A per‑session reference public key is generated using `@solana/web3.js` and appended as a `reference` query parameter to the Solana Pay URL.
-- The QR code is generated with `react-qr-code` and updates when the amount changes.
-- The “Donate Privately” modal contains pseudo‑code snippets for Elusiv and Light Protocol.  These are placeholders to guide developers; actual integration would involve importing the respective SDKs and handling shield/unshield flows.
-- After sending a transaction, users must paste the signature into the input box.  Auto‑discovery via the reference is out of scope for this MVP but can be implemented using `getSignaturesForAddress` and `getTransaction` from `@solana/web3.js`.
+* Never expose private keys or Arcium credentials in the browser.
+* Amount privacy is enforced at the **app layer** (the blockchain is public).
+* Program IDs can be **our devnet IDs** or **your own** (if you deploy the Anchor program).
+
+---
+
+## License
+
+**MIT** — The web app **will remain open source**.

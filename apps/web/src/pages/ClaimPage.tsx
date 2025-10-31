@@ -1,3 +1,4 @@
+//apps/web/src/pages/ClaimPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';

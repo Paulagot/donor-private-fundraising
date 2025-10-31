@@ -1,80 +1,157 @@
-# Cypherpunk Tip Jar
+# FundRaisely — Privacy‑Protecting Donations (Hackathon Prototype)
 
-**Cypherpunk Tip Jar** is a minimal Solana donation portal built for FundRaisely’s demo at the Solana Colosseum.  It allows supporters to send voluntary gifts in SOL to a designated recipient wallet, optionally leveraging privacy‑preserving tools.  Donations are acknowledged by an Arcium‑verified receipt that proves the amount tier without revealing the sender or exact amount.
+> **Cash‑like privacy for digital giving.** Donors stay private; charities get verifiable on‑chain receipts.
 
-This repository is organised as a monorepo with three packages:
+This monorepo contains the hackathon prototype of **FundRaisely’s Privacy‑Protecting Donations** portal. It integrates **Arcium** MPC (amount → tier, off‑chain) with **Solana/Anchor** programs (tamper‑evident receipt PDAs) and a React/Vite front‑end.
 
-- **`apps/web`** – a React/TypeScript front‑end built with Vite and Tailwind.  It serves the `/donate/sol` page, generates per‑session payment references, displays a Solana Pay QR code, guides donors through simple and private donation flows, and fetches privacy‑preserving receipts.
-- **`apps/api`** – a Node/Express backend that exposes a `POST /arcium/verify` endpoint.  It validates incoming transactions, submits encrypted verification requests to Arcium and, depending on the configured callback mode, either writes receipt PDAs on‑chain or returns the result directly to the client.
-- **`programs/tipjar-receipts`** – an Anchor program deployed to Solana devnet.  It defines a `Receipt` PDA keyed off a unique reference and an instruction used by Arcium to record the commitment and amount tier on‑chain.
+> **Open‑source pledge:** This project is MIT‑licensed and **will remain open source** after the hackathon.
 
-Each package contains its own README with setup instructions, environment variable descriptions and runbooks.  A quickstart is provided below for convenience.
+> **Legacy naming note:** The scaffold used the working name *Cypherpunk Tip Jar*. Package names may still reference it; functionality and intent are unchanged.
+
+---
+
+## Monorepo layout
+
+```
+fundraisely-privacy-donations/
+├─ README.md                         # you are here
+├─ .env.example                      # root env (shared defaults)
+├─ apps/
+│  ├─ web/                           # React/Vite front‑end (Vite + Tailwind)
+│  └─ api/                           # Node/Express API (Arcium + receipts)
+└─ programs/
+   └─ tipjar-receipts/               # Anchor program: receipt PDAs
+```
+
+---
+
+## Highlights
+
+* **Private by design:** raw amounts never surface in the app; donors get **tiers** (Bronze/Silver/Gold/Platinum).
+* **Verifiable receipts:** **Receipt PDAs** store commitment + tier for auditability.
+* **Arcium integration:** MPC computes tiers off‑chain; only tier + commitment are persisted.
+* **Composable:** use **our devnet program IDs** or **deploy your own** with one command.
+
+---
 
 ## Quickstart
 
-1. **Install dependencies**
+### Requirements
 
-   ```bash
-   # install pnpm globally if not already installed
-   npm install -g pnpm
+* Node **20+**, pnpm **10+**
+* Solana CLI (devnet), Anchor CLI
 
-   # install workspace dependencies
-   cd cypherpunk-tipjar
-   pnpm install
-   ```
+### Install
 
-2. **Configure your environment**
-
-   Copy the provided `.env.example` files in the root and each package to `.env` and fill in the missing values.  At a minimum you need a Solana devnet RPC URL and a recipient SOL address.  The Arcium API key and cluster can be left as placeholders when running locally.
-
-3. **Run the front‑end**
-
-   ```bash
-   pnpm --filter web dev
-   ```
-
-   The donation page will be available at `http://localhost:5173/donate/sol`.
-
-4. **Run the API**
-
-   ```bash
-   pnpm --filter api dev
-   ```
-
-   The API will listen on `http://localhost:3001`.  The health endpoint is available at `/health` and the receipt verification endpoint at `/arcium/verify`.
-
-5. **Build and deploy the Anchor program**
-
-   ```bash
-   pnpm --filter tipjar-receipts build
-   pnpm --filter tipjar-receipts deploy
-   ```
-
-   This compiles the program and deploys it to Solana devnet using your configured wallet.  The resulting program ID is written to `programs/tipjar-receipts/deployments/devnet.json` and consumed by the API and front‑end.
-
-6. **Run the demo**
-
-   A detailed demo script can be found in `docs/DEMO.md` that guides you through sending a donation on devnet, verifying it, and obtaining an Arcium‑verified receipt.
-
-## Repository layout
-
-```
-cypherpunk-tipjar/
-├── README.md
-├── docs/
-│   └── DEMO.md
-├── package.json
-├── .editorconfig
-├── .eslintrc.json
-├── .prettierrc
-├── .gitignore
-├── .env.example
-└── apps/
-    ├── web/
-    ├── api/
-    └── …
-└── programs/
-    └── tipjar-receipts/
+```bash
+npm i -g pnpm
+pnpm install
 ```
 
-See each package directory for more details.# donor-private-fundraising
+### Configure env
+
+Copy the samples and fill in values.
+
+**Root `.env` (example)**
+
+```ini
+SOLANA_CLUSTER=devnet
+SHARED_RPC_URL=https://api.devnet.solana.com
+DONATION_SOL_ADDRESS=7koYv1dqqHWh4PQ5bVh8CyLBTxqAHeARPiuazzF2FhCY
+
+ARCIUM_API_KEY=your-arcium-api-key
+ARCIUM_CLUSTER=devnet
+CALLBACK_MODE=onchain
+
+# Use ours or your own after deploy
+TIPJAR_PROGRAM_ID=7YaPMHgDfdBxc3jBXKUDGk87yZ3VjAaA57FoiRy5VG7q
+PUBLIC_WEBSITE_ORIGIN=http://localhost:5173
+```
+
+**apps/api `.env` (dev example)**
+
+```ini
+RPC_URL=https://api.devnet.solana.com
+DONATION_SOL_ADDRESS=7koYv1dqqHWh4PQ5bVh8CyLBTxqAHeARPiuazzF2FhCY
+ARCIUM_CLUSTER_OFFSET=1078779259
+API_SIGNER_KEYPAIR_PATH=
+PORT=3001
+CALLBACK_MODE=server
+MXE_PROGRAM_ID=AuoVDGoVfQaRdKGGkrgQyfpcGrJt9P6C8AqVSkNoqo5i
+TIPJAR_PROGRAM_ID=7YaPMHgDfdBxc3jBXKUDGk87yZ3VjAaA57FoiRy5VG7q
+```
+
+**apps/web `.env` (dev example)**
+
+```ini
+VITE_DONATION_SOL_ADDRESS=7koYv1dqqHWh4PQ5bVh8CyLBTxqAHeARPiuazzF2FhCY
+VITE_API_URL=http://localhost:3001
+VITE_TIPJAR_PROGRAM_ID=7YaPMHgDfdBxc3jBXKUDGk87yZ3VjAaA57FoiRy5VG7q
+```
+
+### Run locally
+
+```bash
+pnpm --filter ./apps/api dev
+pnpm --filter ./apps/web dev
+```
+
+* Web: [http://localhost:5173](http://localhost:5173)
+* API: [http://localhost:3001](http://localhost:3001) (`/health`, `/arcium/verify`)
+
+---
+
+## Deploy or reuse the Anchor program
+
+**Use ours (devnet):**
+
+* `TIPJAR_PROGRAM_ID = 7YaPMHgDfdBxc3jBXKUDGk87yZ3VjAaA57FoiRy5VG7q`
+* (optional) `MXE_PROGRAM_ID = AuoVDGoVfQaRdKGGkrgQyfpcGrJt9P6C8AqVSkNoqo5i`
+
+**Or deploy your own:**
+
+```bash
+pnpm --filter ./programs/tipjar-receipts build
+pnpm --filter ./programs/tipjar-receipts deploy
+```
+
+Copy the emitted Program ID into the API/Web envs.
+
+---
+
+## Architecture (Mermaid)
+
+```mermaid
+flowchart LR
+  A[Donor Wallet] -->|SOL + reference| B(Solana Tx)
+  B --> C[API (apps/api)]
+  C -->|verifyDonation| D[Arcium MPC]
+  D -->|tier result| C
+  C -->|write receipt| E[(Receipt PDA\nAnchor)]
+  E --> F[Web UI (apps/web)]
+```
+
+---
+
+## Scripts
+
+At repo root:
+
+```json
+{
+  "scripts": {
+    "lint": "eslint . --ext .ts,.tsx,.js",
+    "format": "prettier --write .",
+    "build": "pnpm --filter web build && pnpm --filter api build && pnpm --filter tipjar-receipts build"
+  }
+}
+```
+
+See package READMEs in **apps/api** and **apps/web** for service‑specific scripts.
+
+---
+
+## License
+
+**MIT** — see `LICENSE`. This project **will remain open source**.
+
