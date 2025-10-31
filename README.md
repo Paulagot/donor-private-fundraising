@@ -123,12 +123,14 @@ Copy the emitted Program ID into the API/Web envs.
 
 ```mermaid
 flowchart LR
-  A[Donor Wallet] -->|SOL + reference| B(Solana Tx)
+  A[Donor Wallet] -->|SOL + reference| B[Solana Tx]
   B --> C[API (apps/api)]
   C -->|verifyDonation| D[Arcium MPC]
   D -->|tier result| C
-  C -->|write receipt| E[(Receipt PDA\nAnchor)]
+  C -->|write receipt| E[(Receipt PDA<br/>Anchor program)]
   E --> F[Web UI (apps/web)]
+  F -->|Claim benefits| G[Perks & Voting]
+
 ```
 
 ---
