@@ -8,6 +8,11 @@ This monorepo contains the hackathon prototype of **FundRaisely’s Privacy‑Pr
 
 > **Legacy naming note:** The scaffold used the working name *Cypherpunk Tip Jar*. Package names may still reference it; functionality and intent are unchanged.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Railway.app-blue)](https://cypherpunk-tipjar-web-production.up.railway.app/)
+
+**Live demo:** https://cypherpunk-tipjar-web-production.up.railway.app/
+
+
 ---
 
 ## Monorepo layout
